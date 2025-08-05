@@ -1,6 +1,7 @@
 // Based on Dmitry Vyukov's MPMC Queue
 
 #include <atomic>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -16,19 +17,21 @@ namespace {
 
 constexpr std::size_t default_queue_size = 1024; // must be a power of 2
 
-struct queue_data {
+template <typename Payload>
+struct queue_data_t {
     std::atomic<std::size_t> enqueue_pos;
     std::atomic<std::size_t> dequeue_pos;
     std::size_t              mask;
     struct cell {
         std::atomic<std::size_t> seq;
-        int                      data;
+        Payload                  data;
     } buf[default_queue_size];
 };
 
 }
 
-inline void init_queue(queue_data* q) {
+template <typename Payload>
+inline void init_queue(queue_data_t<Payload>* q) {
     q->enqueue_pos.store(0, std::memory_order_relaxed);
     q->dequeue_pos.store(0, std::memory_order_relaxed);
     q->mask = default_queue_size - 1;
@@ -38,7 +41,7 @@ inline void init_queue(queue_data* q) {
     }
 }
 
-template<typename T>
+template<typename Payload>
 class shm_mpmc_bounded_queue {
 public:
     explicit shm_mpmc_bounded_queue(const std::string& shm_name, bool create_segment=true)
@@ -48,12 +51,12 @@ public:
     }
 
     ~shm_mpmc_bounded_queue() {
-        if (data_) munmap(data_, sizeof(queue_data));
+        if (data_) munmap(data_, sizeof(queue_data_t<Payload>));
         if (fd_ >= 0) close(fd_);
         if (owner_) shm_unlink(shm_name_.c_str());
     }
 
-    bool enqueue(const T& v) {
+    bool enqueue(const Payload& v) {
         auto* q   = data_;
         auto  pos = q->enqueue_pos.load(std::memory_order_relaxed);
         cell_t* c;
@@ -78,7 +81,7 @@ public:
         return true;
     }
 
-    bool dequeue(T& out) {
+    bool dequeue(Payload& out) {
         auto* q   = data_;
         auto  pos = q->dequeue_pos.load(std::memory_order_relaxed);
         cell_t* c;
@@ -105,13 +108,13 @@ public:
     }
 
 private:
-    using cell_t = typename queue_data::cell;
+    using cell_t = typename queue_data_t<Payload>::cell;
 
 
-    std::string  shm_name_;
-    int          fd_;
-    queue_data*  data_;
-    bool         owner_;
+    std::string             shm_name_;
+    int                     fd_;
+    queue_data_t<Payload>*  data_;
+    bool                    owner_;
 
     shm_mpmc_bounded_queue(shm_mpmc_bounded_queue const&) = delete;
     void operator=(shm_mpmc_bounded_queue const&) = delete;
@@ -126,14 +129,14 @@ private:
         fstat(fd_, &st);
         bool need_init = (st.st_size == 0);
         if (need_init) {
-            if (ftruncate(fd_, sizeof(queue_data)) != 0) throw std::runtime_error("ftruncate failed");
+            if (ftruncate(fd_, sizeof(queue_data_t<Payload>)) != 0) throw std::runtime_error("ftruncate failed");
         }
-        void* p = mmap(nullptr, sizeof(queue_data), PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
+        void* p = mmap(nullptr, sizeof(queue_data_t<Payload>), PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
         if (p == MAP_FAILED) throw std::runtime_error("mmap failed");
-        data_ = static_cast<queue_data*>(p);
+        data_ = static_cast<queue_data_t<Payload>*>(p);
         if (need_init) {
             owner_ = true;
-            init_queue(data_);
+            init_queue<Payload>(data_);
         }
     }
 };

@@ -11,22 +11,33 @@ constexpr size_t n_messages = 100000000;          // Total messages to send
 constexpr int n_producers = 2;
 constexpr int n_consumers = 2;
 
+struct complex_message_t {
+    int  message_type;
+    bool flag;
+    char content[240];
+};
+
 std::atomic<size_t> messages_received(0);
 
 void producer(size_t id, size_t count) {
-    shm_mpmc_bounded_queue<int> q("/mpmc_demo_queue", queue_size);
+    shm_mpmc_bounded_queue<complex_message_t> q("/mpmc_demo_queue", queue_size);
     for (size_t i = 0; i < count; ++i) {
-        while (!q.enqueue(static_cast<int>(i))) {
+        complex_message_t msg;
+        msg.message_type = 1;
+        msg.flag = false;
+        std::snprintf(msg.content, sizeof(msg.content), "producer id: %zu | msg-%zu", id, i);   // fill payload
+
+        while (!q.enqueue(msg)) {
             std::this_thread::yield();
         }
     }
 }
 
 void consumer() {
-    shm_mpmc_bounded_queue<int> q("/mpmc_demo_queue", queue_size);
-    int val;
+    shm_mpmc_bounded_queue<complex_message_t> q("/mpmc_demo_queue", queue_size);
+    complex_message_t out;
     while (true) {
-        if (q.dequeue(val)) {
+        if (q.dequeue(out)) {
             size_t current = messages_received.fetch_add(1, std::memory_order_relaxed);
             if (current + 1 >= n_messages) break;
         } else {
@@ -38,8 +49,8 @@ void consumer() {
 }
 
 int main() {
-    // Create and initialize shared memory once
-    shm_mpmc_bounded_queue<int> init("/mpmc_demo_queue", queue_size);
+    shm_unlink("/mpmc_demo_queue");
+    shm_mpmc_bounded_queue<complex_message_t> init("/mpmc_demo_queue", queue_size);
 
     auto start = std::chrono::high_resolution_clock::now();
 
