@@ -1,5 +1,6 @@
 # Benchmarks
 Thread based into shared memory inside common process:
+
 Total messages: 100000000
 
 Time elapsed: 10.3794 sec
@@ -11,6 +12,7 @@ Latency per message:   0.103794 µs
 ---
 
 IPC to shared memory using mmap:
+
 Total messages: 100000000
 
 Time elapsed:   12.8788 sec
