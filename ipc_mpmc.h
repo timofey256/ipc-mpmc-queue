@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>   
 #include <unistd.h>  
+#include <new>
 
 namespace {
 
@@ -19,19 +20,32 @@ constexpr std::size_t default_queue_size = 1048576; // must be a power of 2
 
 template <typename Payload>
 struct queue_data_t {
-    alignas(64) std::atomic<std::size_t> enqueue_pos;
-    char pad1[64 - sizeof(std::atomic<std::size_t>)];
-    alignas(64) std::atomic<std::size_t> dequeue_pos;
-    char pad2[64 - sizeof(std::atomic<std::size_t>)];
-    std::size_t              mask;
+    alignas(std::hardware_destructive_interference_size)
+    std::atomic<std::size_t> enqueue_pos;
 
-    // tried to pad it in order to avoid false sharing but seems it has no effect, so i removed it
-    struct alignas(64) cell {
+    char pad1[std::hardware_destructive_interference_size - sizeof(std::atomic<std::size_t>)];
+
+    alignas(std::hardware_destructive_interference_size)
+    std::atomic<std::size_t> dequeue_pos;
+
+    char pad2[std::hardware_destructive_interference_size - sizeof(std::atomic<std::size_t>)];
+
+    std::size_t mask;
+
+    struct alignas(std::hardware_destructive_interference_size) cell {
         std::atomic<std::size_t> seq;
-        Payload                  data;
-        char                     pad[64 - sizeof(seq) - sizeof(data)];
+        Payload data;
 
-    } buf[default_queue_size];
+        char pad[
+            std::hardware_destructive_interference_size >
+            sizeof(std::atomic<std::size_t>) + sizeof(Payload)
+            ? std::hardware_destructive_interference_size - sizeof(std::atomic<std::size_t>) - sizeof(Payload)
+            : 0
+        ];
+    };
+
+    alignas(std::hardware_destructive_interference_size)
+    cell buf[default_queue_size];
 };
 
 }
