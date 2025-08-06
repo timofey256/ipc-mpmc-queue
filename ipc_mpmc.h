@@ -15,18 +15,22 @@
 
 namespace {
 
-constexpr std::size_t default_queue_size = 1024; // must be a power of 2
+constexpr std::size_t default_queue_size = 1048576; // must be a power of 2
 
 template <typename Payload>
 struct queue_data_t {
-    std::atomic<std::size_t> enqueue_pos;
-    std::atomic<std::size_t> dequeue_pos;
+    alignas(64) std::atomic<std::size_t> enqueue_pos;
+    char pad1[64 - sizeof(std::atomic<std::size_t>)];
+    alignas(64) std::atomic<std::size_t> dequeue_pos;
+    char pad2[64 - sizeof(std::atomic<std::size_t>)];
     std::size_t              mask;
 
     // tried to pad it in order to avoid false sharing but seems it has no effect, so i removed it
-    struct cell {
+    struct alignas(64) cell {
         std::atomic<std::size_t> seq;
         Payload                  data;
+        char                     pad[64 - sizeof(seq) - sizeof(data)];
+
     } buf[default_queue_size];
 };
 
