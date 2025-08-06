@@ -22,6 +22,8 @@ struct queue_data_t {
     std::atomic<std::size_t> enqueue_pos;
     std::atomic<std::size_t> dequeue_pos;
     std::size_t              mask;
+
+    // tried to pad it in order to avoid false sharing but seems it has no effect, so i removed it
     struct cell {
         std::atomic<std::size_t> seq;
         Payload                  data;
