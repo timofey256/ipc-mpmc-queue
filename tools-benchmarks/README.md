@@ -46,5 +46,5 @@ taskset -c 0 redis-server --save '' --appendonly no --loglevel warning --hz 10
 Then, compile the code:
 ```
 g++ pub.cpp -lhiredis -O2 -o pub
-g++ sub.cpp -lhiredis -O2 -o pub
+g++ sub.cpp -lhiredis -O2 -o sub
 ```
