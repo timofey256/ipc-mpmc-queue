@@ -32,7 +32,6 @@ Time elapsed:   67.9451 sec
 Throughput:     7.35888e+06 msgs/sec
 Average time per logical message: 0.13589 us/msg
 
-
 =======
 
 Number of producers: 8
