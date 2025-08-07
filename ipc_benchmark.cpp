@@ -4,17 +4,18 @@
 #include <vector>
 #include <chrono>
 #include <cassert>
+#include <cstring>
 #include "ipc_mpmc.h"
 
-constexpr size_t queue_size = 1024;             // Must match default_queue_size in header
-constexpr size_t n_messages = 100000000;          // Total messages to send
-constexpr int n_producers = 2;
-constexpr int n_consumers = 2;
+constexpr size_t queue_size = 1048576;             // Must match default_queue_size in header
+constexpr size_t n_messages = 100'000'000;          // Total messages to send
+constexpr int n_producers = 8;
+constexpr int n_consumers = 8;
 
 struct complex_message_t {
     int  message_type;
     bool flag;
-    char content[240];
+    char content[32];
 };
 
 std::atomic<size_t> messages_received(0);
@@ -25,7 +26,8 @@ void producer(size_t id, size_t count) {
         complex_message_t msg;
         msg.message_type = 1;
         msg.flag = false;
-        std::snprintf(msg.content, sizeof(msg.content), "producer id: %zu | msg-%zu", id, i);   // fill payload
+        //std::memset(msg.content, 0, sizeof(msg.content));
+        std::snprintf(msg.content, sizeof(msg.content), "msg-%zu", id, i);
 
         while (!q.enqueue(msg)) {
             std::this_thread::yield();
@@ -69,10 +71,12 @@ int main() {
     double latency = elapsed.count() * 1e6 / n_messages; // microseconds per message
     double throughput = n_messages / elapsed.count();    // messages per second
 
+    std::cout << "Number of producers: " << n_producers << "\n";
+    std::cout << "Number of consumers: " << n_consumers << "\n";
     std::cout << "Total messages: " << n_messages << "\n";
     std::cout << "Time elapsed:   " << elapsed.count() << " sec\n";
     std::cout << "Throughput:     " << throughput << " msgs/sec\n";
-    std::cout << "Latency:        " << latency << " us/msg\n";
+    std::cout << "Average time per logical message: " << latency << " us/msg\n";
 
     return 0;
 }
